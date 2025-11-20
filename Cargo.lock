@@ -261,9 +261,9 @@ dependencies = [
  "kspin",
  "lazyinit",
  "log",
- "plic",
  "riscv",
  "riscv_goldfish",
+ "riscv_plic",
  "sbi-rt",
  "uart_16550",
 ]
@@ -922,11 +922,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "plic"
-version = "0.1.0"
-source = "git+https://github.com/Starry-OS/plic.git?rev=ee40f86#ee40f86b888280f291af815874e5f3cee9ee3b94"
-
-[[package]]
 name = "potential_utf"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1006,6 +1001,14 @@ name = "riscv_goldfish"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07aac72f95e774476db82916d79f2d303191310393830573c1ab5c821b21660a"
+
+[[package]]
+name = "riscv_plic"
+version = "0.2.0"
+source = "git+https://github.com/Starry-OS/riscv_plic.git?tag=v0.2.0#be7776f3c790c2155718c610b437cce664b440e7"
+dependencies = [
+ "tock-registers 0.10.1",
+]
 
 [[package]]
 name = "rustversion"
@@ -1234,6 +1237,12 @@ name = "tock-registers"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b9e2fdb3a1e862c0661768b7ed25390811df1947a8acbfbefe09b47078d93c4"
+
+[[package]]
+name = "tock-registers"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d2d250f87fb3fb6f225c907cf54381509f47b40b74b1d1f12d2dccbc915bdfe"
 
 [[package]]
 name = "toml"

@@ -1,12 +1,17 @@
+use core::sync::atomic::{AtomicPtr, Ordering};
+
+use axplat::{
+    cpu::this_cpu_id,
+    irq::{HandlerTable, IpiTarget, IrqHandler, IrqIf},
+};
+use riscv::register::sie;
+use riscv_plic::{Mode, Plic, SimpleContext};
+use sbi_rt::HartMask;
+
 use crate::config::{
     devices::PLIC_PADDR,
     plat::{CPU_NUM, PHYS_VIRT_OFFSET},
 };
-use axplat::irq::{HandlerTable, IpiTarget, IrqHandler, IrqIf};
-use core::sync::atomic::{AtomicPtr, Ordering};
-use plic::{Mode, PLIC};
-use riscv::register::sie;
-use sbi_rt::HartMask;
 
 /// `Interrupt` bit in `scause`
 pub(super) const INTC_IRQ_BASE: usize = 1 << (usize::BITS - 1);
@@ -30,12 +35,27 @@ pub const MAX_IRQ_COUNT: usize = 1024;
 
 static IRQ_HANDLER_TABLE: HandlerTable<MAX_IRQ_COUNT> = HandlerTable::new();
 
-static PLIC: PLIC<CPU_NUM> = unsafe { PLIC::new(PHYS_VIRT_OFFSET + PLIC_PADDR, [2; CPU_NUM]) };
+static PLIC: Plic = unsafe { Plic::new(PHYS_VIRT_OFFSET + PLIC_PADDR) };
 
-pub(crate) fn init() {
-    for hart in 0..(CPU_NUM as u32) {
-        PLIC.set_threshold(hart, Mode::Supervisor, 0);
+fn this_context() -> SimpleContext<'static> {
+    let privileges: &[u8] = &[2; CPU_NUM];
+    let hart_id = this_cpu_id();
+
+    SimpleContext {
+        privileges,
+        hart_id,
+        mode: Mode::Supervisor,
     }
+}
+
+pub(super) fn init_percpu() {
+    // enable soft interrupts, timer interrupts, and external interrupts
+    unsafe {
+        sie::set_ssoft();
+        sie::set_stimer();
+        sie::set_sext();
+    }
+    PLIC.init_by_context(this_context());
 }
 
 macro_rules! with_cause {
@@ -55,15 +75,6 @@ macro_rules! with_cause {
             }
         }
     };
-}
-
-pub(super) fn init_percpu() {
-    // enable soft interrupts, timer interrupts, and external interrupts
-    unsafe {
-        sie::set_ssoft();
-        sie::set_stimer();
-        sie::set_sext();
-    }
 }
 
 struct IrqIfImpl;
@@ -88,13 +99,9 @@ impl IrqIf for IrqIfImpl {
             @EX_IRQ => {
                 if enabled {
                     PLIC.set_priority(irq as _, 6);
-                    for hart in 0..(CPU_NUM as u32) {
-                        PLIC.enable(hart, Mode::Supervisor, irq as _);
-                    }
+                    PLIC.enable(irq as _, this_context());
                 } else {
-                    for hart in 0..(CPU_NUM as u32) {
-                        PLIC.disable(hart, Mode::Supervisor, irq as _);
-                    }
+                    PLIC.disable(irq as _, this_context());
                 }
             }
         );
@@ -189,12 +196,14 @@ impl IrqIf for IrqIfImpl {
                 }
             },
             @S_EXT => {
-                let hart = axplat::cpu::this_cpu_id() as u32;
-                let irq = PLIC.claim(hart, Mode::Supervisor);
-                if !IRQ_HANDLER_TABLE.handle(irq as _) {
+                let Some(irq) = PLIC.claim(this_context()) else {
+                    debug!("Spurious external IRQ");
+                    return;
+                };
+                if !IRQ_HANDLER_TABLE.handle(irq.get() as usize) {
                     debug!("Unhandled IRQ {irq}");
                 }
-                PLIC.complete(0, Mode::Supervisor, irq);
+                PLIC.complete(this_context(), irq);
             },
             @EX_IRQ => {
                 unreachable!("Device-side IRQs should be handled by triggering the External Interrupt.");
