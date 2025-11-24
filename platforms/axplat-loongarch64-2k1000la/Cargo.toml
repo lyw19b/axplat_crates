@@ -2,7 +2,7 @@
 name = "axplat-loongarch64-2k1000la"
 version = "0.2.0"
 description = "Implementation of `axplat` hardware abstraction layer for QEMU LoongArch virtual machine."
-documentation = "https://docs.rs/axplat-loongarch64-qemu-virt"
+documentation = "https://docs.rs/axplat-loongarch64-2k1000la"
 keywords = ["arceos", "os", "hal", "embedded", "loongarch"]
 categories = ["embedded", "no-std", "hardware-support", "os"]
 edition.workspace = true
